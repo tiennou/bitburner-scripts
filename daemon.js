@@ -29,6 +29,8 @@ const argsSchema = [
     ['run-once', false], // Same as above
     ['x', false], // Focus on a strategy that produces the most hack EXP rather than money
     ['xp-only', false], // Same as above
+    ['w', false], // Don't perform work-related tasks
+    ['skip-work', false], // Same as above
     ['n', false], // Can toggle on using hacknet nodes for extra hacking ram (at the expense of hash production)
     ['use-hacknet-nodes', false], // Same as above
     ['spend-hashes-for-money-when-under', 10E6], // (Default 10m) Convert 4 hashes to money whenever we're below this amount
@@ -118,6 +120,7 @@ let shareOnly = false; // "--share-only" command line arg - focus on making the 
 let verbose = false; // "-v" command line arg - Detailed logs about batch scheduling / tuning
 let runOnce = false; // "-o" command line arg - Good for debugging, run the main targettomg loop once then stop
 let useHacknetNodes = false; // "-n" command line arg - Can toggle using hacknet nodes for extra hacking ram
+let skipWork = false; // "-w" command line arg - Don't perform work-related tasks
 let loopingMode = false;
 let recoveryThreadPadding = 1; // How many multiples to increase the weaken/grow threads to recovery from misfires automatically (useful when RAM is abundant and timings are tight)
 let silentMisfires = false; // "--silent-misfires" command line arg - disable misfire-related toasts
@@ -217,6 +220,7 @@ export async function main(ns) {
     options = runOptions;
     hackOnly = options.h || options['hack-only'];
     xpOnly = options.x || options['xp-only'];
+    skipWork = options.w || options['skip-work'];
     stockMode = options.s || options['stock-manipulation'] || options['stock-manipulation-focus'];
     stockFocus = options['stock-manipulation-focus'];
     useHacknetNodes = options.n || options['use-hacknet-nodes'];
@@ -260,7 +264,7 @@ export async function main(ns) {
         { name: "gangs.js", tail: openTailWindows, shouldRun: () => reqRam(64) && 2 in dictSourceFiles }, // Script to create manage our gang for us
         {
             name: "work-for-factions.js", args: ['--fast-crimes-only', '--no-coding-contracts'],  // Singularity script to manage how we use our "focus" work.
-            shouldRun: () => 4 in dictSourceFiles && reqRam(256 / (2 ** dictSourceFiles[4]) && !studying) // Higher SF4 levels result in lower RAM requirements
+            shouldRun: () => !skipWork && 4 in dictSourceFiles && reqRam(256 / (2 ** dictSourceFiles[4]) && !studying) // Higher SF4 levels result in lower RAM requirements
         },
         {   // Script to create manage bladeburner for us
             name: "bladeburner.js", tail: openTailWindows,
