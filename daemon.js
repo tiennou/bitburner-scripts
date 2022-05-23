@@ -43,6 +43,7 @@ const argsSchema = [
     ['reserved-ram', 32], // Keep this much home RAM free when scheduling hack/grow/weaken cycles on home.
     ['looping-mode', false], // Set to true to attempt to schedule perpetually-looping tasks.
     ['recovery-thread-padding', 1], // Multiply the number of grow/weaken threads needed by this amount to automatically recover more quickly from misfires.
+    ['share-only', false], // Forces us to only perform sharing operations
     ['share', false], // Enable sharing free ram to increase faction rep gain (enabled automatically once RAM is sufficient)
     ['no-share', false], // Disable sharing free ram to increase faction rep gain
     ['share-cooldown', 5000], // Wait before attempting to schedule more share threads (e.g. to free RAM to be freed for hack batch scheduling first)
@@ -113,6 +114,7 @@ let hackOnly = false; // "-h" command line arg - don't grow or shrink, just hack
 let stockMode = false; // "-s" command line arg - hack/grow servers in a way that boosts our current stock positions
 let stockFocus = false;  // If true, stocks are main source of income - kill any scripts that would do them harm
 let xpOnly = false; // "-x" command line arg - focus on a strategy that produces the most hack EXP rather than money
+let shareOnly = false; // "--share-only" command line arg - focus on making the most share resources available
 let verbose = false; // "-v" command line arg - Detailed logs about batch scheduling / tuning
 let runOnce = false; // "-o" command line arg - Good for debugging, run the main targettomg loop once then stop
 let useHacknetNodes = false; // "-n" command line arg - Can toggle using hacknet nodes for extra hacking ram
@@ -221,9 +223,11 @@ export async function main(ns) {
     runOnce = options.o || options['run-once'];
     loopingMode = options['looping-mode'];
     recoveryThreadPadding = options['recovery-thread-padding'];
+    shareOnly = options['share-only'];
     // Log which flaggs are active
     if (hackOnly) log(ns, '-h - Hack-Only mode activated!');
     if (xpOnly) log(ns, '-x - Hack XP Grinding mode activated!');
+    if (shareOnly) log(ns, '--share-only - Share-only mode activated!');
     if (stockMode) log(ns, '-s - Stock market manipulation mode activated!');
     if (stockMode && !playerInfo.hasTixApiAccess) log(ns, "WARNING: Ran with '--stock-manipulation' flag, but this will have no effect until you buy access to the stock market API then restart or manually run stockmaster.js");
     if (stockFocus) log(ns, '--stock-manipulation-focus - Stock market manipulation is the main priority');
@@ -597,7 +601,7 @@ async function doTargetingLoop(ns) {
                     targeting.push(server); // TODO: While targeting, we should keep queuing more batches
                 } else if (server.isPrepping()) { // Note servers already being prepped from a prior loop
                     prepping.push(server);
-                } else if (isWorkCapped() || xpOnly) { // Various conditions for which we'll postpone any additional work on servers
+                } else if (isWorkCapped() || xpOnly || shareOnly) { // Various conditions for which we'll postpone any additional work on servers
                     if (xpOnly && (((nextXpCycleEnd[server.name] || 0) > start - 10000) || server.isXpFarming()))
                         targeting.push(server); // A server counts as "targeting" if in XP mode and its due to be farmed or was in the past 10 seconds
                     else
@@ -687,6 +691,8 @@ async function doTargetingLoop(ns) {
             if (xpOnly) { // If all we want to do is gain hack XP
                 let time = await farmHackXp(ns, 1.00, verbose);
                 loopInterval = Math.min(1000, time || 1000); // Wake up earlier if we're almost done an XP cycle
+            } else if (shareOnly) {
+                // We do nothing here, so all RAM is available for sharing
             } else if (!isWorkCapped() && lowUtilizationIterations > 10) {
                 let expectedRunTime = getBestXPFarmTarget().timeToHack();
                 let freeRamToUse = (expectedRunTime < loopInterval) ? // If expected runtime is fast, use as much RAM as we want, it'll all be free by our next loop.
@@ -697,7 +703,7 @@ async function doTargetingLoop(ns) {
 
             // Use any unspent RAM on share if we are currently working for a faction
             const maxShareUtilization = options['share-max-utilization']
-            if (failed.length <= 0 && utilizationPercent < maxShareUtilization && // Only share RAM if we have succeeded in all hack cycle scheduling and have RAM to space
+            if (shareOnly || failed.length <= 0 && utilizationPercent < maxShareUtilization && // Only share RAM if we have succeeded in all hack cycle scheduling and have RAM to space
                 playerInfo.isWorking && playerInfo.workType == "Working for Faction" && // No point in sharing RAM if we aren't currently working for a faction.
                 (Date.now() - lastShareTime) > options['share-cooldown'] && // Respect the share rate-limit if configured to leave gaps for scheduling
                 !options['no-share'] && (options['share'] || network.totalMaxRam > 1024)) // If not explicitly enabled or disabled, auto-enable share at 1TB of network RAM
@@ -708,13 +714,16 @@ async function doTargetingLoop(ns) {
                 network = getNetworkStats(); // Update network stats since they may have changed after scheduling xp cycles above
                 utilizationPercent = network.totalUsedRam / network.totalMaxRam;
                 let shareThreads = Math.floor(maxThreads * (maxShareUtilization - utilizationPercent) / (1 - utilizationPercent)); // Ensure we don't take utilization above (1-maxShareUtilization)%
+                // log(ns, `RAM usage: ${utilizationPercent}, remaining RAM left to share ${maxShareUtilization - utilizationPercent}, \n` +
+                //         `  remaining RAM: ${1 - utilizationPercent}, calc: ${(maxShareUtilization - utilizationPercent) / (1 - utilizationPercent)}, \n` + 
+                //         `  max share threads: ${maxThreads}, actual share threads: ${shareThreads}`);
                 if (shareThreads > 0) {
                     if (verbose) log(ns, `Creating ${shareThreads.toLocaleString()} share threads to improve faction rep gain rates. Using ${formatRam(shareThreads * 4)} of ${formatRam(network.totalMaxRam)} ` +
                         `(${(400 * shareThreads / network.totalMaxRam).toFixed(1)}%) of all RAM). Final utilization will be ${(100 * (4 * shareThreads + network.totalUsedRam) / network.totalMaxRam).toFixed(1)}%`);
                     await arbitraryExecution(ns, getTool('share'), shareThreads, [Date.now()], null, true) // Note: Need a unique argument to facilitate multiple parallel share scripts on the same server
                     lastShareTime = Date.now();
                 }
-            } // else log(ns, `Not Sharing. workCapped: ${isWorkCapped()} utilizationPercent: ${utilizationPercent} maxShareUtilization: ${maxShareUtilization} cooldown: ${formatDuration(Date.now() - lastShareTime)} networkRam: ${network.totalMaxRam}`);
+            } // else log(ns, `Not Sharing. workCapped: ${isWorkCapped()} utilizationPercent: ${utilizationPercent} maxShareUtilization: ${maxShareUtilization} cooldown: ${formatDuration(Date.now() - lastShareTime)} work: ${playerStats.isWorking && playerStats.workType == "Working for Faction"} networkRam: ${network.totalMaxRam}`);
 
             // Log some status updates
             let keyUpdates = `Of ${allHostNames.length} total servers:\n > ${noMoney.length} were ignored (owned or no money)`;
