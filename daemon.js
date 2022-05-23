@@ -120,6 +120,7 @@ let runOnce = false; // "-o" command line arg - Good for debugging, run the main
 let useHacknetNodes = false; // "-n" command line arg - Can toggle using hacknet nodes for extra hacking ram
 let loopingMode = false;
 let recoveryThreadPadding = 1; // How many multiples to increase the weaken/grow threads to recovery from misfires automatically (useful when RAM is abundant and timings are tight)
+let silentMisfires = false; // "--silent-misfires" command line arg - disable misfire-related toasts
 
 let daemonHost = null; // the name of the host of this daemon, so we don't have to call the function more than once.
 let hasFormulas = true;
@@ -223,6 +224,7 @@ export async function main(ns) {
     runOnce = options.o || options['run-once'];
     loopingMode = options['looping-mode'];
     recoveryThreadPadding = options['recovery-thread-padding'];
+    silentMisfires = options['silent-misfires'];
     shareOnly = options['share-only'];
     // Log which flaggs are active
     if (hackOnly) log(ns, '-h - Hack-Only mode activated!');
@@ -1159,7 +1161,7 @@ function getFlagsArgs(toolName, target, allowLooping = true) {
     if (["hack", "grow"].includes(toolName)) // Push an arg used by remote hack/grow tools to determine whether it should manipulate the stock market
         args.push(stockMode && (toolName == "hack" && shouldManipulateHack[target] || toolName == "grow" && shouldManipulateGrow[target]) ? 1 : 0);
     if (["hack", "weak"].includes(toolName))
-        args.push(options['silent-misfires'] || // Optional arg to disable toast warnings about a failed hack if hacking money gain is disabled
+        args.push(silentMisfires || // Optional arg to disable toast warnings about a failed hack if hacking money gain is disabled
             (toolName == "hack" && (bitnodeMults.ScriptHackMoneyGain == 0 || playerBitnode == 8)) ? 1 : 0); // Disable automatically in BN8 (hack income disabled)
     args.push(allowLooping && loopingMode ? 1 : 0); // Argument to indicate whether the cycle should loop perpetually
     return args;
@@ -1540,7 +1542,7 @@ async function scheduleHackExpCycle(ns, server, percentOfFreeRamToConsume, verbo
         let threads = Math.floor(((allocatedServer == null ? expTool.getMaxThreads() : allocatedServer.ramAvailable() / expTool.cost) * percentOfFreeRamToConsume).toPrecision(14));
         if (threads == 0)
             return log(ns, `WARNING: Cannot farm XP from ${server.name}, threads == 0 for allocated server ` + (allocatedServer == null ? '(any server)' :
-                `${allocatedServer.name} with ${formatRam(allocatedServer.ramAvailable())} free RAM`), false, 'warning');
+                `${allocatedServer.name} with ${formatRam(allocatedServer.ramAvailable())} free RAM`), false, (!silentMisfires ? 'warning' : ''));
 
         if (advancedMode) { // Need to keep server money above zero, and security at minimum to farm xp from hack();
             const effectiveHackThreads = Math.ceil(1 / server.percentageStolenPerHackThread()); // Only this many hack threads "count" for stealing/hardening. The rest get a 'free ride'
