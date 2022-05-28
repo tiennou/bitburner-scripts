@@ -331,7 +331,7 @@ async function checkOnRunningScripts(ns, player) {
 	let stanekRunning = (13 in unlockedSFs) && findScript('stanek.js') !== undefined;
 	if ((13 in unlockedSFs) && installedAugmentations.includes(`Stanek's Gift - Genesis`) && !stanekLaunched && !stanekRunning) {
 		stanekLaunched = true; // Once we've know we've launched stanek once, we never have to again this reset.
-		launchScriptHelper(ns, 'stanek.js');
+		launchScriptHelper(ns, 'stanek.js', ['--charge']);
 		stanekRunning = true;
 	}
 
