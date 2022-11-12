@@ -52,7 +52,7 @@ export async function main(ns) {
                 const hashes = await getNsDataThroughFile(ns, '[ns.hacknet.numHashes(), ns.hacknet.hashCapacity()]', '/Temp/hash-stats.txt')
                 if (hashes[1] > 0) {
                     addHud("Hashes", `${formatNumberShort(hashes[0], 3, 1)}/${formatNumberShort(hashes[1], 3, 1)}`,
-                        `Current Hashes ${hashes[0].toLocaleString()} / Current Hash Capacity ${hashes[1].toLocaleString()}`);
+                        `Current Hashes ${hashes[0].toLocaleString('en')} / Current Hash Capacity ${hashes[1].toLocaleString('en')}`);
                 }
                 // Detect and notify the HUD if we are liquidating hashes (selling them as quickly as possible)               
                 if (ns.isRunning('spend-hacknet-hashes.js', 'home', '--liquidate') || ns.isRunning('spend-hacknet-hashes.js', 'home', '-l')) {
@@ -67,8 +67,8 @@ export async function main(ns) {
             }
 
             // Show total instantaneous script income and experience per second (values provided directly by the game)
-            addHud("Scr Inc", formatMoney(ns.getScriptIncome()[0], 3, 2) + '/sec', "Total 'instantenous' income per second being earned across all scripts running on all servers.");
-            addHud("Scr Exp", formatNumberShort(ns.getScriptExpGain(), 3, 2) + '/sec', "Total 'instantenous' hack experience per second being earned across all scripts running on all servers.");
+            addHud("Scr Inc", formatMoney(ns.getTotalScriptIncome()[0], 3, 2) + '/sec', "Total 'instantenous' income per second being earned across all scripts running on all servers.");
+            addHud("Scr Exp", formatNumberShort(ns.getTotalScriptExpGain(), 3, 2) + '/sec', "Total 'instantenous' hack experience per second being earned across all scripts running on all servers.");
 
             // Show reserved money
             const reserve = Number(ns.read("reserve.txt") || 0);
@@ -89,7 +89,7 @@ export async function main(ns) {
                     addHud("Territory", formatNumberShort(gangInfo.territory * 100, 4, 2) + "%",
                         `How your gang is currently doing in territory warfare. Starts at 14.29%\n` +
                         `Gang: ${gangInfo.faction} ${gangInfo.isHacking ? "(Hacking)" : "(Combat)"}  ` +
-                        `Power: ${gangInfo.power.toLocaleString()}  Clash ${gangInfo.territoryWarfareEngaged ? "enabled" : "disabled"} ` +
+                        `Power: ${gangInfo.power.toLocaleString('en')}  Clash ${gangInfo.territoryWarfareEngaged ? "enabled" : "disabled"} ` +
                         `(${(gangInfo.territoryClashChance * 100).toFixed(0)}% chance)`);
                 }
             }

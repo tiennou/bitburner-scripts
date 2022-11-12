@@ -44,7 +44,7 @@ export async function main(ns) {
 	// Step 1: Go to Aevum if we aren't already there. (Must be done manually if you don't have SF4)
 	if (ns.getPlayer().city != "Aevum") {
 		try {
-			if (ns.getPlayer().money < 200000 || !(await getNsDataThroughFile(ns, 'ns.travelToCity(ns.args[0])', '/Temp/travelToCity.txt', ["Aevum"])))
+			if (ns.getPlayer().money < 200000 || !(await getNsDataThroughFile(ns, 'ns.singularity.travelToCity(ns.args[0])', '/Temp/travelToCity.txt', ["Aevum"])))
 				return tailAndLog(ns, "ERROR: Sorry, you need at least 200k to travel to the casino.");
 		} catch (err) {
 			return tailAndLog(ns, "ERROR: You must manually travel to to Aevum to use this script until you get SF4");
@@ -58,6 +58,8 @@ export async function main(ns) {
 
 	// Find the button used to save the game
 	const btnSaveGame = await findRetry(ns, "//button[@aria-label = 'save game']");
+	if (!btnSaveGame)
+		return tailAndLog(ns, "ERROR: Sorry, couldn't find the Overview Save (💾) button. Is your \"Overview\" panel collapsed or modded?");
 	let inputWager, btnStartGame;
 
 	// Step 2: Try to navigate to the blackjack game until successful, in case something repeatedly steals focus
@@ -77,7 +79,7 @@ export async function main(ns) {
 				await click(await findRetry(ns, "//div[(@role = 'button') and (contains(., 'City'))]"));
 				await click(await findRetry(ns, "//span[@aria-label = 'Iker Molina Casino']"));
 			} catch { // Use SF4 as a fallback, it's more reliable.
-				try { await getNsDataThroughFile(ns, 'ns.goToLocation(ns.args[0])', '/Temp/goToLocation.txt', ["Iker Molina Casino"]); }
+				try { await getNsDataThroughFile(ns, 'ns.singularity.goToLocation(ns.args[0])', '/Temp/goToLocation.txt', ["Iker Molina Casino"]); }
 				catch { return tailAndLog(ns, "ERROR: Failed to travel to the casino both using UI navigation and using SF4 as a fall-back."); }
 			}
 			// Step 2.3: Try to start the blackjack game
@@ -112,7 +114,7 @@ export async function main(ns) {
 						log(ns, "ERROR: It looks like something stole focus while we were trying to automate the casino. Trying again.");
 						continue; // Loop back to start and try again
 					}
-					await ns.write(ran_flag, true, "w"); // Write a flag other scripts can check for indicating we think we've been kicked out of the casino.
+					await ns.write(ran_flag, "True", "w"); // Write a flag other scripts can check for indicating we think we've been kicked out of the casino.
 					return log(ns, "INFO: We appear to already have been previously kicked out of the casino.", true);
 				}
 				// Step 2.5.2: Kill all other scripts if enabled (note, we assume that if the temp folder is empty, they're already killed and this is a reload)
@@ -212,7 +214,7 @@ async function killAllOtherScripts(ns, removeRemoteFiles) {
 /** @param {NS} ns 
  *  Run when we can no longer gamble at the casino (presumably because we've been kicked out) **/
 async function onCompletion(ns) {
-	await ns.write(ran_flag, true, "w"); // Write an file indicating we think we've been kicked out of the casino.
+	await ns.write(ran_flag, "True", "w"); // Write an file indicating we think we've been kicked out of the casino.
 	log(ns, "SUCCESS: We've been kicked out of the casino.", true);
 
 	// Run the completion script before shutting down    
